@@ -1,7 +1,6 @@
 FROM crashvb/base:24.04-202508010159@sha256:f7b3a015c749980c2427241686134908e4f82e2c0b72688dac37cb59e4e05169
 ARG org_opencontainers_image_created=undefined
 ARG org_opencontainers_image_revision=undefined
-ARG python_version=3.12.3
 LABEL \
 	org.opencontainers.image.authors="Richard Davis <crashvb@gmail.com>" \
 	org.opencontainers.image.base.digest="sha256:f7b3a015c749980c2427241686134908e4f82e2c0b72688dac37cb59e4e05169" \
@@ -20,8 +19,25 @@ ENV \
 	LANG=C.UTF-8 \
 	LC_ALL=C.UTF-8
 # hadolint ignore=DL3013
-RUN docker-apt git-core jq npm xmlstarlet && \
-	npm install --global @openai/codex && \
+RUN docker-apt \
+		ansible-core \
+		fd-find \
+		git-core \
+		git-lfs \
+		jq \
+		less \
+		npm \
+		pipx \
+		python-is-python3 \
+		python3-pip \
+		python3-venv \
+		ripgrep \
+		shellcheck \
+		shfmt \
+		tree \
+		xmlstarlet \
+		yq && \
+	npm install --global @openai/codex typescript && \
 	install --directory --group=root --mode=0755 --owner=root "${DEV_ROOT}"
 	
 # Configure: codex
