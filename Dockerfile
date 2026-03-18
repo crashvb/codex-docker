@@ -38,9 +38,14 @@ RUN docker-apt \
 		xmlstarlet \
 		yq && \
 	npm install --global @openai/codex typescript && \
+	PIPX_BIN_DIR=/usr/local/bin pipx install vja && \
 	install --directory --group=root --mode=0755 --owner=root "${DEV_ROOT}"
 	
 # Configure: codex
+
+# Configure: profile
+RUN printf '%s\n' '#!/bin/sh' 'export VJA_CONFIG_DIR=/root/.codex/vja' > /etc/profile.d/vja.sh && \
+	chmod 0755 /etc/profile.d/vja.sh
 
 # Configure: entrypoint
 COPY entrypoint.codex /etc/entrypoint.d/codex
