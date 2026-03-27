@@ -5,5 +5,7 @@ set -e -o pipefail
 # Configure: codex
 if [[ ! -e "${EP_RUN}" ]] ; then
 	log "Configuring $(basename "${0}") for first run ..."
+
+	/opt/codex/setup_universal.sh
 fi
 
