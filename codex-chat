@@ -32,7 +32,7 @@ function usage
 
 # Default values
 agent="codex-worker"
-args=(--no-alt-screen --sandbox danger-full-access)
+args=(--no-alt-screen --dangerously-bypass-approvals-and-sandbox)
 conversation_id=""
 history_file="${HOME}/.codex_history.d/$(date +%Y%m%d.%H%M%S.%N).txt"
 list_conversations_=""
