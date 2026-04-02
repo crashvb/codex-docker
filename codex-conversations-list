@@ -1,0 +1,94 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+# shellcheck disable=SC1091
+source /usr/lib/Server27NW.sh
+
+# shellcheck disable=SC2034
+LOG_CONSOLE=""
+# shellcheck disable=SC2034
+LOG_FILE=""
+setLogConfig
+
+database="${HOME}/.codex/state_5.sqlite"
+
+function usage
+{
+	# shellcheck disable=SC2154
+	cat <<- EOF >&2
+		usage: ${script_name} [options]
+		options:
+		  -h, --help             Show this help
+		  -o, --sort <col:dir>   Sort order (default: updated_at:DESC)
+	EOF
+	exit 1
+}
+
+# Default values
+sort_order="updated_at DESC"
+
+# Parse arguments
+while [[ "${#}" -gt 0 ]] ; do
+	case "${1}" in
+		-h|--help)
+			usage
+			;;
+		-o|--sort)
+			sort_order="${2//:/ }"
+			shift 2
+			;;
+		-*)
+			logger_error "Unknown option: ${1}"
+			usage
+			;;
+		*)
+			logger_error "Unexpected argument: ${1}"
+			usage
+			;;
+	esac
+done
+
+sqlite3 -separator $'\x1e' "${database}" "
+	SELECT
+		datetime(updated_at, 'unixepoch', 'localtime'),
+		cwd,
+		id,
+		replace(replace(substr(title, 1, 80), char(10), ' '), char(13), ''),
+		rollout_path
+	FROM threads ORDER BY ${sort_order}
+" | while IFS=$'\x1e' read -r updated cwd conversation_id title rollout_path ; do
+	directory="${cwd/${HOME}/\~}"
+	if [[ "${#directory}" -gt 30 ]] ; then
+		directory="...${directory: -27}"
+	fi
+	last=""
+	if [[ -f "${rollout_path}" ]] ; then
+		last="$(jq -rs '
+			[
+				.[]
+				| select(.payload.type == "message" and .payload.role == "user")
+				| [
+					.payload.content[]?
+					| select(.type == "input_text")
+					| .text
+				]
+				| join(" ")
+			] as $messages |
+			if ($messages | length) > 1 then
+				$messages[-1] | gsub("[\\n\\r]"; " ") | .[:80]
+			else "" end
+		' "${rollout_path}" 2>/dev/null)"
+	fi
+	printf '%s\t%s\t%s\t%s\t%s\n' "${updated}" "${directory}" "${conversation_id}" "${title}" "${last}"
+done | awk -F'\t' -v gray="${ANSI_FG_GRAY}" -v yellow="${ANSI_FG_YELLOW}" -v green="${ANSI_FG_GREEN}" -v bold="${ANSI_BOLD}" -v nc="${ANSI_NC}" '
+	BEGIN {
+		fmt = "%-19s  %-30s  %-36s  %s\n"
+		printf bold fmt nc, "updated", "directory", "conversation_id", "message"
+		printf fmt, "-------------------", "------------------------------", "------------------------------------", "--------------------------------------------------------------------------------"
+	}
+	{
+		printf gray "%-19s" nc "  %-30s  %-36s  " yellow "%s" nc "\n", $1, $2, $3, $4
+		if ($5 != "") printf "%-19s  %-30s  %-36s  " green "... %s" nc "\n", "", "", "", $5
+	}
+'

@@ -19,7 +19,8 @@ LABEL \
 ENV \
 	DEV_ROOT=/workspace \
 	LANG=C.UTF-8 \
-	LC_ALL=C.UTF-8
+	LC_ALL=C.UTF-8 \
+	TERM=xterm-256color
 COPY --from=parent /sbin/apt-add-repo /sbin/docker-* /sbin/entrypoint /sbin/healthcheck /sbin/
 COPY --from=parent /usr/local/lib/entrypoint.sh /usr/local/lib/
 # hadolint ignore=DL3013
@@ -34,18 +35,23 @@ RUN apt-add-repo "crashvb-server27nw-jammy" https://ppa.launchpadcontent.net/cra
 		ipset \
 		iptables \
 		less \
+		lib-server27nw-bash \
 		npm \
 		python-is-python3 \
 		python3-pip \
 		shellcheck \
 		shfmt \
 		tree \
+		uuid-runtime \
 		xmlstarlet \
 		vim \
 		yq && \
 	npm install --global @openai/codex typescript && \
 	PIPX_BIN_DIR=/usr/local/bin pipx install vja && \
 	install --directory --group=root --mode=0755 --owner=root "${DEV_ROOT}"
+
+# Configure: codex
+COPY codex-* /usr/local/bin/
 
 # Configure: bash profile
 RUN sed --in-place --expression="/^HISTSIZE/s/1000/9999/" --expression="/^HISTFILESIZE/s/2000/99999/" /root/.bashrc && \

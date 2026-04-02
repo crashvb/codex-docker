@@ -1,0 +1,150 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+# shellcheck disable=SC1091
+source /usr/lib/Server27NW.sh
+
+# shellcheck disable=SC2034
+LOG_CONSOLE=""
+# shellcheck disable=SC2034
+LOG_FILE=""
+setLogConfig
+
+database="${HOME}/.codex/state_5.sqlite"
+
+function usage
+{
+	# shellcheck disable=SC2154
+	cat <<- EOF >&2
+		usage: ${script_name} [options]
+		options:
+		  -a, --agent <name>        Agent name (default: codex-worker)
+		  -c, --conversation <id>   Resume a specific conversation by ID
+		  -h, --help                Show this help
+		  -l, --list-conversations  List saved conversations
+		  -m, --marker <uuid>       Find conversation ID by marker string
+		  -o, --sort <col:dir>      Sort order for --list-conversations (default: updated_at:DESC)
+		  -t, --tmpdir <dir>        Temporary workspace to avoid agent conflicts
+	EOF
+	exit 1
+}
+
+# Default values
+agent="codex-worker"
+args=(--no-alt-screen --sandbox danger-full-access)
+conversation_id=""
+history_file="${HOME}/.codex_history.d/$(date +%Y%m%d.%H%M%S.%N).txt"
+list_conversations_=""
+marker=""
+sort_order="updated_at:DESC"
+tmpdir="/tmp"
+
+# Parse arguments
+while [[ "${#}" -gt 0 ]] ; do
+	case "${1}" in
+		-a|--agent)
+			agent="${2}"
+			shift 2
+			;;
+		-c|--conversation)
+			conversation_id="${2}"
+			shift 2
+			;;
+		-h|--help)
+			usage
+			;;
+		-l|--list-conversations)
+			list_conversations_="true"
+			shift
+			;;
+		-m|--marker)
+			marker="${2}"
+			shift 2
+			;;
+		-o|--sort)
+			sort_order="${2}"
+			shift 2
+			;;
+		-t|--tmpdir)
+			tmpdir="${2}"
+			shift 2
+			;;
+		-*)
+			logger_error "Unknown option: ${1}"
+			usage
+			;;
+		*)
+			logger_error "Unexpected argument: ${1}"
+			usage
+			;;
+	esac
+done
+
+if [[ -n "${marker}" ]] ; then
+	result="$(sqlite3 "${database}" "SELECT id FROM threads WHERE first_user_message LIKE '%${marker//\'/\'\'}%' OR title LIKE '%${marker//\'/\'\'}%' ORDER BY created_at DESC LIMIT 1")"
+	if [[ -z "${result}" ]] ; then
+		fatal "No conversation found for marker: ${marker}"
+	fi
+	echo "${result}"
+	exit 0
+fi
+
+if [[ -n "${list_conversations_}" ]] ; then
+	# shellcheck disable=SC2154
+	exec "${script_path}/codex-conversations-list" --sort "${sort_order}"
+fi
+
+# Required values
+require_options agent
+
+logger_info "Agent: ${ANSI_FG_YELLOW}${agent}${ANSI_NC}"
+
+# Seed conversation ID for new sessions
+input=""
+if [[ -z "${conversation_id}" ]] ; then
+	marker="$(uuidgen)"
+	logger_info "Marker: ${ANSI_FG_YELLOW}${marker}${ANSI_NC}"
+	codex \
+		exec \
+		--skip-git-repo-check \
+		"Print exactly: Conversation ID: ${marker}" \
+		>/dev/null 2>&1 || true
+	# shellcheck disable=SC2154
+	conversation_id="$("${script_path}/codex-chat" --marker "${marker}" 2>/dev/null || true)"
+	input=""
+fi
+
+resume_args=()
+if [[ -n "${conversation_id}" ]] ; then
+	logger_info "Conversation ID: ${ANSI_FG_YELLOW}${conversation_id}${ANSI_NC}"
+	conversation_dir="$(sqlite3 "${database}" "SELECT cwd FROM threads WHERE id='${conversation_id//\'/\'\'}' LIMIT 1")"
+	if [[ -z "${conversation_dir}" ]] ; then
+		fatal "Session not found: ${conversation_id}"
+	fi
+	logger_info "Changing CWD to: ${conversation_dir} ..."
+	cd "${conversation_dir}"
+	resume_args+=(resume --all "${conversation_id}")
+	[[ -n "${input}" ]] && resume_args+=("\"${input}\"")
+elif [[ "X${PWD,,}" == "X${HOME,,}" ]] ; then
+	logger_info "Changing CWD to: ${tmpdir} ..."
+	cd "${tmpdir}"
+fi
+
+export \
+	CODEX_AGENT_NAME="${agent}" \
+	CODEX_CONVERSATION_ID="${conversation_id}" \
+	CODEX_HISTORY_FILE="${history_file}"
+echo "# conversation_id=${conversation_id}" >> "${history_file}"
+
+if [[ -n "${TMUX}" ]] ; then
+	logger_debug "Assigning tmux pane options ..."
+	tmux set -p @codex.agent_name "${agent}"
+	tmux set -p @codex.conversation_id "${conversation_id}"
+	tmux set -p @codex.history_file "${history_file}"
+fi
+
+exec script \
+	--append "${history_file}" \
+	--command "codex ${args[*]} ${resume_args[*]}" \
+	--flush
