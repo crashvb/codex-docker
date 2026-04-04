@@ -32,7 +32,7 @@ function usage
 
 # Default values
 agent="codex-worker"
-args=(--no-alt-screen --dangerously-bypass-approvals-and-sandbox)
+args=(--dangerously-bypass-approvals-and-sandbox)
 conversation_id=""
 history_file="${HOME}/.codex_history.d/$(date +%Y%m%d.%H%M%S.%N).txt"
 list_conversations_=""
@@ -108,6 +108,7 @@ if [[ -z "${conversation_id}" ]] ; then
 	codex \
 		exec \
 		--skip-git-repo-check \
+		"${args[@]}" \
 		"Print exactly: Conversation ID: ${marker}" \
 		>/dev/null 2>&1 || true
 	# shellcheck disable=SC2154
@@ -115,7 +116,7 @@ if [[ -z "${conversation_id}" ]] ; then
 	input=""
 fi
 
-resume_args=()
+resume_args=(--no-alt-screen)
 if [[ -n "${conversation_id}" ]] ; then
 	logger_info "Conversation ID: ${ANSI_FG_YELLOW}${conversation_id}${ANSI_NC}"
 	conversation_dir="$(sqlite3 "${database}" "SELECT cwd FROM threads WHERE id='${conversation_id//\'/\'\'}' LIMIT 1")"
