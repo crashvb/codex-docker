@@ -46,7 +46,7 @@ RUN apt-add-repo "crashvb-server27nw-jammy" https://ppa.launchpadcontent.net/cra
 		xmlstarlet \
 		vim \
 		yq && \
-	npm install --global @openai/codex typescript && \
+	npm install --global @openai/codex mcp-searxng@2.9.0 typescript && \
 	PIPX_BIN_DIR=/usr/local/bin pipx install vja && \
 	install --directory --group=root --mode=0755 --owner=root "${DEV_ROOT}"
 
