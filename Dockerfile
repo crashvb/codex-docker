@@ -20,6 +20,8 @@ ENV \
 	DEV_ROOT=/workspace \
 	LANG=C.UTF-8 \
 	LC_ALL=C.UTF-8 \
+	NVM_SYMLINK_CURRENT=true \
+	PATH=/root/.nvm/current/bin:${PATH} \
 	TERM=xterm-256color
 COPY --from=parent /sbin/apt-add-repo /sbin/docker-* /sbin/entrypoint /sbin/healthcheck /sbin/
 COPY --from=parent /usr/local/lib/entrypoint.sh /usr/local/lib/
@@ -46,7 +48,10 @@ RUN apt-add-repo "crashvb-server27nw-jammy" https://ppa.launchpadcontent.net/cra
 		xmlstarlet \
 		vim \
 		yq && \
-	npm install --global @openai/codex mcp-searxng@2.9.0 typescript && \
+	. /root/.nvm/nvm.sh && \
+	nvm alias default 22 && \
+	nvm use 22 && \
+	npm install --global --prefix /usr/local @openai/codex mcp-searxng@2.9.0 typescript && \
 	PIPX_BIN_DIR=/usr/local/bin pipx install vja && \
 	install --directory --group=root --mode=0755 --owner=root "${DEV_ROOT}"
 
@@ -60,7 +65,9 @@ RUN sed --in-place --expression="/^HISTSIZE/s/1000/9999/" --expression="/^HISTFI
 	touch ~/.hushlogin
 
 # Configure: profile
-RUN printf '%s\n' '#!/bin/sh' 'export VJA_CONFIGDIR=/root/.codex/vja' > /etc/profile.d/vja.sh && \
+RUN printf '%s\n' '#!/bin/sh' '. /root/.nvm/nvm.sh' > /etc/profile.d/nvm.sh && \
+	chmod 0755 /etc/profile.d/nvm.sh && \
+	printf '%s\n' '#!/bin/sh' 'export VJA_CONFIGDIR=/root/.codex/vja' > /etc/profile.d/vja.sh && \
 	chmod 0755 /etc/profile.d/vja.sh
 
 # Configure: entrypoint
